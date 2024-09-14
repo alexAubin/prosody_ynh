@@ -4,8 +4,18 @@ source _common.sh
 source /usr/share/yunohost/helpers
 
 #=================================================
+# CHECKING DEPENDANCIES
+#=================================================
+# (waiting for packaging v3)
+# we need 'coturn' to support A/V calls
+# It was installed automatically at install time,
+# we let it upgrade from itself -> no action here!
+
+#=================================================
 # DISABLE METRONOME
 #=================================================
+# it should not be present anymore in YNH12
+# but probably kept for people migrating from YNH11
 ynh_script_progression "Disabling Metronome..."
 
 if systemctl list-unit-files metronome.service &>/dev/null
@@ -63,7 +73,18 @@ mkdir -p $config_path
 mkdir -p $config_path/{certs,conf.avail,conf.d}
 
 ynh_config_add --template="prosody.cfg.lua" --destination="$config_path/prosody.cfg.lua"
-ynh_config_add --template="example.com.cfg.lua" --destination="$config_path/conf.avail/example.com.cfg.lua"
+# Add domain configuration
+ynh_config_add --template="domain.tpl.cfg.lua" --destination="/etc/prosody/conf.d/$domain.cfg.lua"
+
+# Add nginx config for xmpp subdomains
+ynh_config_add --template="../conf/nginx-extra-xmpp.conf" --destination="/etc/nginx/conf.d/$domain-extra-xmpp.conf"
+
+# update password and port from coturn app
+turnpassword=$(ynh_app_setting_get --app="coturn" --key=turnserver_pwd)
+turnport=$(ynh_app_setting_get --app="coturn" --key=port_turnserver)
+ynh_replace --match="Some passphrase" --replace="$turnpassword" --file="$config_path/prosody.cfg.lua"
+ynh_replace --match="turn_external_port = 3478" --replace="turn_external_port = $turnport" --file="$config_path/prosody.cfg.lua"
+
 #ynh_config_add --template="localhost.cfg.lua" --destination="$config_path/conf.avail/localhost.cfg.lua"
 #ln -s $config_path/conf.avail/localhost.cfg.lua $config_path/conf.d/
 
